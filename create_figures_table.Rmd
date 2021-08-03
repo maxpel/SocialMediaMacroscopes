@@ -1,0 +1,592 @@
+---
+title: "Materials for 'Validating daily social media macroscopes of emotions'"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE,warning=FALSE,message=FALSE,cache=FALSE)
+library(data.table)
+library(lubridate)
+library(zoo)
+library(ggplot2)
+library(lmtest)
+library(sandwich)
+library(xtable)
+library(cocor)
+library(boot)
+
+theme_thesis <- function(){
+  theme_bw() %+replace%
+    theme(
+      #line = element_line(colour="black"),
+      #text = element_text(colour="black"),
+      axis.title = element_text(size = 14),
+      axis.text = element_text(colour="black", size=12),
+      #strip.text = element_text(size=12),
+      # legend.key=element_rect(colour=NA, fill =NA),
+      panel.grid.major = element_line(colour = "grey90"),
+      panel.grid.minor = element_line(colour="grey90"),
+      # panel.border = element_rect(fill = NA, colour = "black", size=1),
+      panel.background = element_rect(fill = "white"),
+      strip.background=element_rect(fill="white")#,
+      #legend.title=element_blank()
+      # legend.position="none"
+    )
+}
+
+theme_set(theme_thesis())
+
+Sys.setlocale("LC_ALL", 'en_US.UTF-8')
+
+wmean <- function(x) weighted.mean(x[, 1], x[, 2])
+```
+
+# Der Standard
+
+```{r derstandard_plots, fig.show="hold", out.width="50%"}
+pl <- readRDS("pl.RDS")
+
+# Scatterplot regression
+
+pl <- na.omit(pl)
+
+ggplot(pl, aes(x=sent_roll3_weighted,y=prop_good)) +
+  geom_smooth(method="lm",color = "black") + geom_point() + ylab('Proportion of Positive in Survey') +
+  xlab("Text Sentiment Average") + theme(axis.title = element_text(size = 18),axis.text = element_text(colour="black", size=16))
+
+
+# Changes regression
+# We lose one data point because we cannot compute a change on the first day of the survey
+
+pl <- readRDS("pl.RDS")
+
+pl$difgood <- c(NA,diff(pl$prop_good))
+pl$difsent <- c(NA,diff(pl$sent_roll3_weighted))
+
+pl <- na.omit(pl)
+
+ggplot(pl, aes(x=difsent,y=difgood)) +
+  geom_smooth(method="lm",color = "black") + geom_point() + ylab('Change of Proportion of Positive') +
+  xlab("Change of Text Sentiment Average") + geom_vline(xintercept =0,linetype=2) +
+  geom_hline(yintercept =0,linetype=2) + theme(axis.title = element_text(size = 18),axis.text = element_text(colour="black", size=16))
+
+```
+
+## Scatterplot regression and correlation
+```{r}
+pl <- readRDS("pl.RDS")
+
+pl <- na.omit(pl)
+
+fit_scatter <- lm(prop_good ~ sent_roll3_weighted,data=pl)
+
+summary(fit_scatter)
+
+cor.test(pl$prop_good,pl$sent_roll3_weighted)
+```
+
+## Scatterplot test of coefficients
+```{r}
+round(coeftest(fit_scatter, vcov=vcovHAC(fit_scatter)),3)
+
+round(coefci(fit_scatter, vcov=vcovHAC(fit_scatter)),3)
+```
+
+## Differences regression and correlation
+```{r}
+pl <- readRDS("pl.RDS")
+
+pl$difgood <- c(NA,diff(pl$prop_good))
+pl$difsent <- c(NA,diff(pl$sent_roll3_weighted))
+
+pl <- na.omit(pl)
+
+fit_change <- lm(difgood ~ difsent,pl)
+
+summary(fit_change)
+
+cor.test(pl$difgood,pl$difsent)
+```
+
+## Differences test of coefficients
+```{r}
+round(coeftest(fit_change, vcov=vcovHAC(fit_change)),3)
+
+round(coefci(fit_change, vcov=vcovHAC(fit_change)),3)
+```
+
+## Side by side plot
+
+```{r}
+pl <- readRDS("pl.RDS")
+
+pl <- na.omit(pl)
+
+pl[,date_day:=date]
+
+mp <- lm(prop_good~sent_roll3_weighted,data=pl)
+
+blcis_twitter <- readRDS("boot_survey_twitter.RDS")
+
+cidt <- data.table(matrix(unlist(blcis_twitter),ncol=2,byrow=T))
+
+setnames(cidt,c("cimin","cimax"))
+
+ggplot(cbind(pl,cidt), aes(x=date_day)) +
+  geom_line( aes(y=prop_good),size=1.1,color="blue") +
+  geom_line( aes(y=mp$coefficients[1] + mp$coefficients[2]*sent_roll3_weighted), color="red",size=1.1) +
+  scale_y_continuous(
+    name = '% Positive Emotions in Survey',
+    sec.axis = sec_axis(~mp$coefficients[1] + mp$coefficients[2]*., name="Der Standard Text Sentiment")
+  ) + theme_thesis() + theme(axis.line.y.right = element_line(color = "red"),
+                             axis.ticks.y.right = element_line(color = "red"), axis.title.y.right = element_text(color = "red")) + xlab("Date") + geom_point(aes(y=prop_good)) + geom_point(aes(y=mp$coefficients[1] + mp$coefficients[2]*sent_roll3_weighted),color="red") + geom_ribbon(aes(y=prop_good,ymin=cimin,ymax=cimax),alpha=0.25, bg="blue")
+```
+
+
+# Twitter
+
+```{r twitter_plots, fig.show="hold", out.width="50%"}
+cdplstandard <- readRDS("cdplstandard.RDS")
+
+# Scatterplot regression
+
+cdplstandard <- na.omit(cdplstandard)
+
+ggplot(cdplstandard, aes(x=sent_roll3_weighted_shifted1,y=prop_good)) +
+  geom_smooth(method="lm",color = "black") + geom_point() + ylab('Proportion of Positive in Survey') +
+  xlab("Text Sentiment Average") + theme(axis.title = element_text(size = 18),axis.text = element_text(colour="black", size=16))
+
+
+# Changes regression
+# Again, we lose one data point because we cannot compute a change on the first day of the survey
+
+cdplstandard <- readRDS("cdplstandard.RDS")
+
+cdplstandard$difgood <- c(NA,diff(cdplstandard$prop_good))
+cdplstandard$difsent <- c(NA,diff(cdplstandard$sent_roll3_weighted_shifted1))
+
+cdplstandard <- na.omit(cdplstandard)
+
+ggplot(cdplstandard, aes(x=difsent,y=difgood)) +
+  geom_smooth(method="lm",color = "black") + geom_point() + ylab('Change of Proportion of Positive') +
+  xlab("Change of Text Sentiment Average") + geom_vline(xintercept =0,linetype=2) +
+  geom_hline(yintercept =0,linetype=2) + theme(axis.title = element_text(size = 18),axis.text = element_text(colour="black", size=16))
+
+```
+
+## Scatterplot regression and correlation
+```{r}
+cdplstandard <- readRDS("cdplstandard.RDS")
+
+cdplstandard <- na.omit(cdplstandard)
+
+fit_scatter <- lm(prop_good ~ sent_roll3_weighted_shifted1,data=cdplstandard)
+
+summary(fit_scatter)
+
+cor.test(cdplstandard$prop_good,cdplstandard$sent_roll3_weighted_shifted1)
+```
+
+## Scatterplot test of coefficients
+```{r}
+round(coeftest(fit_scatter, vcov=vcovHAC(fit_scatter)),3)
+
+round(coefci(fit_scatter, vcov=vcovHAC(fit_scatter)),3)
+```
+
+## Differences regression and correlation
+```{r}
+cdplstandard <- readRDS("cdplstandard.RDS")
+
+cdplstandard$difgood <- c(NA,diff(cdplstandard$prop_good))
+cdplstandard$difsent <- c(NA,diff(cdplstandard$sent_roll3_weighted_shifted1))
+
+cdplstandard <- na.omit(cdplstandard)
+
+fit_change <- lm(difgood ~ difsent,cdplstandard)
+
+summary(fit_change)
+
+cor.test(cdplstandard$difgood,cdplstandard$difsent)
+```
+
+## Differences test of coefficients
+```{r}
+round(coeftest(fit_change, vcov=vcovHAC(fit_change)),3)
+
+round(coefci(fit_change, vcov=vcovHAC(fit_change)),3)
+```
+
+## Side by side plot
+
+```{r}
+cdplstandard <- readRDS("cdplstandard.RDS")
+
+cdplstandard <- na.omit(cdplstandard)
+
+mp <- lm(prop_good~sent_roll3_weighted_shifted1,data=cdplstandard)
+
+blcis_twitter <- readRDS("boot_survey_twitter.RDS")
+
+cidt <- data.table(matrix(unlist(blcis_twitter),ncol=2,byrow=T))
+
+setnames(cidt,c("cimin","cimax"))
+
+ggplot(cbind(cdplstandard,cidt), aes(x=date_day)) +
+  geom_line( aes(y=prop_good),size=1.1,color="blue") +
+  geom_line( aes(y=mp$coefficients[1] + mp$coefficients[2]*sent_roll3_weighted_shifted1), color="red",size=1.1) +
+  scale_y_continuous(
+    name = '% Positive Emotions in Survey',
+    sec.axis = sec_axis(~mp$coefficients[1] + mp$coefficients[2]*., name="Twitter Text Sentiment")
+  ) + theme_thesis() + theme(axis.line.y.right = element_line(color = "red"),
+                             axis.ticks.y.right = element_line(color = "red"), axis.title.y.right = element_text(color = "red")) + xlab("Date") + geom_point(aes(y=prop_good)) + geom_point(aes(y=mp$coefficients[1] + mp$coefficients[2]*sent_roll3_weighted_shifted1),color="red") + geom_ribbon(aes(y=prop_good,ymin=cimin,ymax=cimax),alpha=0.25, bg="blue")
+```
+
+# Twitter Pre-Registration Correlations
+
+## Exactly like in Pre-Registration
+
+```{r}
+# exactly like in prereg
+cdplstandard_prereg <- readRDS("cdplstandard_prereg.RDS")
+
+round(cor(na.omit(cdplstandard_prereg)$sent_roll3_weighted,na.omit(cdplstandard_prereg)$prop_good),2)
+
+paste0("[",paste0(round(cor.test(cdplstandard_prereg$prop_good,cdplstandard_prereg$sent_roll3_weighted)$conf.int,2),collapse=","),"]")
+
+round(cor.test(cdplstandard_prereg$prop_good,cdplstandard_prereg$sent_roll3_weighted)$p.value,4)
+```
+
+## Change to follower limit of 100 000
+
+```{r}
+cdplstandard <- readRDS("cdplstandard.RDS")
+
+round(cor(na.omit(cdplstandard)$sent_roll3_weighted,na.omit(cdplstandard)$prop_good),2)
+
+paste0("[",paste0(round(cor.test(cdplstandard$prop_good,cdplstandard$sent_roll3_weighted)$conf.int,2),collapse=","),"]")
+
+round(cor.test(cdplstandard$prop_good,cdplstandard$sent_roll3_weighted)$p.value,5)
+```
+
+
+# Twitter Shifts
+
+```{r twitter_shifts, fig.show="hold", out.width="50%"}
+cdplstandard <- readRDS("cdplstandard.RDS")
+
+cdplstandard <- na.omit(cdplstandard)
+
+# without shift
+
+mp_without <- lm(prop_good~sent_roll3_weighted,data=cdplstandard)
+
+blcis_twitter <- readRDS("boot_survey_twitter.RDS")
+
+cidt <- data.table(matrix(unlist(blcis_twitter),ncol=2,byrow=T))
+
+setnames(cidt,c("cimin","cimax"))
+
+ggplot(cbind(cdplstandard[date_day>=as.Date("2020-11-11")],cidt), aes(x=date_day)) +
+  geom_line( aes(y=prop_good),size=1.1,color="blue") +
+  geom_line( aes(y=mp_without$coefficients[1] + mp_without$coefficients[2]*sent_roll3_weighted), color="red",size=1.1) +
+  scale_y_continuous(
+    name = '% Positive Emotions in Survey',
+    sec.axis = sec_axis(~mp_without$coefficients[1] + mp_without$coefficients[2]*., name="Text Sentiment")
+  ) + theme_thesis() + theme(axis.line.y.right = element_line(color = "red"),
+                             axis.ticks.y.right = element_line(color = "red"), axis.title.y.right = element_text(color = "red")) + xlab("Date") + geom_point(aes(y=prop_good)) + geom_point(aes(y=mp_without$coefficients[1] + mp_without$coefficients[2]*sent_roll3_weighted),color="red") + geom_ribbon(aes(y=prop_good,ymin=cimin,ymax=cimax),alpha=0.25, bg="blue") +
+  ggtitle("No Shift")
+
+
+# shifted1
+
+mp_shifted1 <- lm(prop_good~sent_roll3_weighted_shifted1,data=cdplstandard)
+
+ggplot(cbind(cdplstandard[date_day>=as.Date("2020-11-11")],cidt), aes(x=date_day)) +
+  geom_line( aes(y=prop_good),size=1.1,color="blue") +
+  geom_line( aes(y=mp_shifted1$coefficients[1] + mp_shifted1$coefficients[2]*sent_roll3_weighted_shifted1), color="red",size=1.1) +
+  scale_y_continuous(
+    name = '% Positive Emotions in Survey',
+    sec.axis = sec_axis(~mp_shifted1$coefficients[1] + mp_shifted1$coefficients[2]*., name="Text Sentiment")
+  ) + theme_thesis() + theme(axis.line.y.right = element_line(color = "red"),
+                             axis.ticks.y.right = element_line(color = "red"), axis.title.y.right = element_text(color = "red")) + xlab("Date") + geom_point(aes(y=prop_good)) + geom_point(aes(y=mp_shifted1$coefficients[1] + mp_shifted1$coefficients[2]*sent_roll3_weighted_shifted1),color="red") + geom_ribbon(aes(y=prop_good,ymin=cimin,ymax=cimax),alpha=0.25, bg="blue") +
+  ggtitle("Shift 1")
+```
+
+# Tables
+
+```{r corrtable_comparison, results='asis'}
+twtable <- c(cor(cdplstandard$prop_good,cdplstandard$sent_roll3_weighted_shifted1),
+             cor(cdplstandard$prop_good,cdplstandard$sentA_roll3_weighted_shifted1),
+             cor(cdplstandard$prop_good,cdplstandard$sentA_pos_roll3_weighted_shifted1),
+             cor(cdplstandard$prop_good,cdplstandard$sentA_neg_roll3_weighted_shifted1),
+             cor(cdplstandard$prop_good,cdplstandard$sentB_roll3_weighted_shifted1),
+             cor(cdplstandard$prop_good,cdplstandard$sentB_pos_roll3_weighted_shifted1),
+             cor(cdplstandard$prop_good,cdplstandard$sentB_neg_roll3_weighted_shifted1))
+
+twtableconfint <- c(paste0("[",paste0(round(cor.test(cdplstandard$prop_good,cdplstandard$sent_roll3_weighted_shifted1)$conf.int,2),collapse=","),"]"),
+                    paste0("[",paste0(round(cor.test(cdplstandard$prop_good,cdplstandard$sentA_roll3_weighted_shifted1)$conf.int,2),collapse=","),"]"),
+                    paste0("[",paste0(round(cor.test(cdplstandard$prop_good,cdplstandard$sentA_pos_roll3_weighted_shifted1)$conf.int,2),collapse=","),"]"),
+                    paste0("[",paste0(round(cor.test(cdplstandard$prop_good,cdplstandard$sentA_neg_roll3_weighted_shifted1)$conf.int,2),collapse=","),"]"),
+                    paste0("[",paste0(round(cor.test(cdplstandard$prop_good,cdplstandard$sentB_roll3_weighted_shifted1)$conf.int,2),collapse=","),"]"),
+                    paste0("[",paste0(round(cor.test(cdplstandard$prop_good,cdplstandard$sentB_pos_roll3_weighted_shifted1)$conf.int,2),collapse=","),"]"),
+                    paste0("[",paste0(round(cor.test(cdplstandard$prop_good,cdplstandard$sentB_neg_roll3_weighted_shifted1)$conf.int,2),collapse=","),"]"))
+                    
+
+twtable_names_overall_nice <- c("LIWC+GS","LIWC","LIWC pos","LIWC neg","GS","GS pos","GS neg")
+
+
+# table Twitter no shift
+
+twtable_noshift <- c(cor(cdplstandard$prop_good,cdplstandard$sent_roll3_weighted),
+             cor(cdplstandard$prop_good,cdplstandard$sentA_roll3_weighted),
+             cor(cdplstandard$prop_good,cdplstandard$sentA_pos_roll3_weighted),
+             cor(cdplstandard$prop_good,cdplstandard$sentA_neg_roll3_weighted),
+             cor(cdplstandard$prop_good,cdplstandard$sentB_roll3_weighted),
+             cor(cdplstandard$prop_good,cdplstandard$sentB_pos_roll3_weighted),
+             cor(cdplstandard$prop_good,cdplstandard$sentB_neg_roll3_weighted))
+
+twtableconfint_noshift <- c(paste0("[",paste0(round(cor.test(cdplstandard$prop_good,cdplstandard$sent_roll3_weighted)$conf.int,2),collapse=","),"]"),
+                    paste0("[",paste0(round(cor.test(cdplstandard$prop_good,cdplstandard$sentA_roll3_weighted)$conf.int,2),collapse=","),"]"),
+                    paste0("[",paste0(round(cor.test(cdplstandard$prop_good,cdplstandard$sentA_pos_roll3_weighted)$conf.int,2),collapse=","),"]"),
+                    paste0("[",paste0(round(cor.test(cdplstandard$prop_good,cdplstandard$sentA_neg_roll3_weighted)$conf.int,2),collapse=","),"]"),
+                    paste0("[",paste0(round(cor.test(cdplstandard$prop_good,cdplstandard$sentB_roll3_weighted)$conf.int,2),collapse=","),"]"),
+                    paste0("[",paste0(round(cor.test(cdplstandard$prop_good,cdplstandard$sentB_pos_roll3_weighted)$conf.int,2),collapse=","),"]"),
+                    paste0("[",paste0(round(cor.test(cdplstandard$prop_good,cdplstandard$sentB_neg_roll3_weighted)$conf.int,2),collapse=","),"]"))
+
+
+dtable <- c(cor(pl$prop_good,pl$sent_roll3_weighted),
+            cor(pl$prop_good,pl$sentA_roll3_weighted),
+            cor(pl$prop_good,pl$sentA_pos_roll3_weighted),
+            cor(pl$prop_good,pl$sentA_neg_roll3_weighted),
+            cor(pl$prop_good,pl$sentB_roll3_weighted),
+            cor(pl$prop_good,pl$sentB_pos_roll3_weighted),
+            cor(pl$prop_good,pl$sentB_neg_roll3_weighted))
+
+
+dtableconfint <- c(paste0("[",paste0(round(cor.test(pl$prop_good,pl$sent_roll3_weighted)$conf.int,2),collapse=","),"]"),
+                    paste0("[",paste0(round(cor.test(pl$prop_good,pl$sentA_roll3_weighted)$conf.int,2),collapse=","),"]"),
+                    paste0("[",paste0(round(cor.test(pl$prop_good,pl$sentA_pos_roll3_weighted)$conf.int,2),collapse=","),"]"),
+                    paste0("[",paste0(round(cor.test(pl$prop_good,pl$sentA_neg_roll3_weighted)$conf.int,2),collapse=","),"]"),
+                    paste0("[",paste0(round(cor.test(pl$prop_good,pl$sentB_roll3_weighted)$conf.int,2),collapse=","),"]"),
+                    paste0("[",paste0(round(cor.test(pl$prop_good,pl$sentB_pos_roll3_weighted)$conf.int,2),collapse=","),"]"),
+                    paste0("[",paste0(round(cor.test(pl$prop_good,pl$sentB_neg_roll3_weighted)$conf.int,2),collapse=","),"]"))
+
+
+# build table
+
+tabledt <- data.frame(paste(sprintf("%.2f",round(dtable,2)),dtableconfint),paste(sprintf("%.2f",round(twtable,2)),twtableconfint),paste(sprintf("%.2f",round(twtable_noshift,2)),twtableconfint_noshift))
+
+colnames(tabledt) <- c("derstandard","Twitter (Shift 1)","Twitter (No Shift)")
+
+rownames(tabledt) <- twtable_names_overall_nice
+
+print(xtable(tabledt),comment=F)
+```
+
+```{r table_cordifferences,results='asis'}
+cdplstandard <- readRDS("cdplstandard.RDS")
+
+cdplstandard <- na.omit(cdplstandard)
+
+
+pl <- readRDS("/home/maxpe/derstandard_decanalysis/pl.RDS")
+
+pl[,date_day:=date]
+
+pl <- na.omit(pl)
+
+
+plselect <- c("date_day","sent_roll3_weighted","sentA_roll3_weighted","sentB_roll3_weighted","sentA_pos_roll3_weighted","sentA_neg_roll3_weighted","sentB_pos_roll3_weighted","sentB_neg_roll3_weighted")
+
+plselectdt <- pl[,.SD,.SDcols=plselect]
+
+setnames(plselectdt,plselect[-1],paste0(plselect[-1],"_derstandard"))
+
+
+cdplselect <- c("prop_good","date_day","sent_roll3_weighted_shifted1","sentA_roll3_weighted_shifted1","sentB_roll3_weighted_shifted1","sentA_pos_roll3_weighted_shifted1","sentA_neg_roll3_weighted_shifted1","sentB_pos_roll3_weighted_shifted1","sentB_neg_roll3_weighted_shifted1")
+
+cdplselectdt <- cdplstandard[,.SD,.SDcols=cdplselect]
+
+setnames(cdplselectdt,cdplselect[-c(1,2)],paste0(cdplselect[-c(1,2)],"_twitter"))
+
+# Corrrelation comparison
+# Method is hittner2003
+
+cordt <- merge(plselectdt,cdplselectdt,by="date_day")
+
+
+
+twtable <- c(cocor(~prop_good + sent_roll3_weighted_derstandard|prop_good + sent_roll3_weighted_shifted1_twitter,data=cordt)@hittner2003$p.value,
+             cocor(~prop_good + sentA_roll3_weighted_derstandard|prop_good + sentB_roll3_weighted_derstandard,data=cordt)@hittner2003$p.value,
+             cocor(~prop_good + sentA_roll3_weighted_shifted1_twitter|prop_good + sentB_roll3_weighted_shifted1_twitter,data=cordt)@hittner2003$p.value,
+             cocor(~prop_good + sentA_pos_roll3_weighted_derstandard|prop_good + sentA_neg_roll3_weighted_derstandard,data=cordt)@hittner2003$p.value,
+             cocor(~prop_good + sentA_pos_roll3_weighted_shifted1_twitter|prop_good + sentA_neg_roll3_weighted_shifted1_twitter,data=cordt)@hittner2003$p.value,
+             cocor(~prop_good + sentB_pos_roll3_weighted_derstandard|prop_good + sentB_neg_roll3_weighted_derstandard,data=cordt)@hittner2003$p.value,
+             cocor(~prop_good + sentB_pos_roll3_weighted_shifted1_twitter|prop_good + sentB_neg_roll3_weighted_shifted1_twitter,data=cordt)@hittner2003$p.value)
+
+twtable_diff <- c(cor(cordt$prop_good,cordt$sent_roll3_weighted_derstandard) - cor(cordt$prop_good,cordt$sent_roll3_weighted_shifted1_twitter),
+                  cor(cordt$prop_good,cordt$sentB_roll3_weighted_derstandard)-cor(cordt$prop_good,cordt$sentA_roll3_weighted_derstandard),
+                  cor(cordt$prop_good,cordt$sentB_roll3_weighted_shifted1_twitter) - cor(cordt$prop_good,cordt$sentA_roll3_weighted_shifted1_twitter),
+                  cor(cordt$prop_good,cordt$sentA_pos_roll3_weighted_derstandard) - cor(cordt$prop_good,cordt$sentA_neg_roll3_weighted_derstandard),
+                  cor(cordt$prop_good,cordt$sentA_pos_roll3_weighted_shifted1_twitter) - cor(cordt$prop_good,cordt$sentA_neg_roll3_weighted_shifted1_twitter),
+                  cor(cordt$prop_good,cordt$sentB_pos_roll3_weighted_derstandard) - cor(cordt$prop_good,cordt$sentB_neg_roll3_weighted_derstandard),
+                  cor(cordt$prop_good,cordt$sentB_pos_roll3_weighted_shifted1_twitter) - cor(cordt$prop_good,cordt$sentB_neg_roll3_weighted_shifted1_twitter))
+
+
+twtable_diff_names <- paste(round(twtable_diff,2),c("(derstandard)","(GS)","(GS)","(LIWC pos)","(LIWC pos)","(GS pos)","(GS pos)"))
+
+twtable_names <- c("Twitter vs derstandard (aggregate Sentiment)","GS vs. LIWC (derstandard)","GS vs. LIWC (Twitter)","LIWC neg vs. LIWC pos (derstandard)","LIWC neg vs. LIWC pos (Twitter)","GS neg vs. GS pos (derstandard)","GS neg vs. GS pos (Twitter)")
+
+tabledt <- data.frame(round(twtable,8),twtable_diff_names)
+
+colnames(tabledt) <- c("p Value","Difference")
+
+rownames(tabledt) <- twtable_names
+
+print(xtable(tabledt,digits=7),comment=F)
+```
+
+# Evaluation with COVID-19 cases
+
+```{r,results='asis'}
+covs <- readRDS("covs.RDS")
+
+# twitter data
+cdplstandard <- readRDS("cdplstandard.RDS")
+
+# derstandard postings
+pl <- readRDS("pl.RDS")
+
+cdplstandard <- merge(cdplstandard,covs,by="date_day")
+
+pl[,date_day:=date]
+
+tdt <- na.omit(merge(pl[,.(date_day,sent_roll3_weighted,prop_good)],cdplstandard[,.(date_day,sent_roll3_weighted_twitter=sent_roll3_weighted,sent_roll3_weighted_shifted1_twitter=sent_roll3_weighted_shifted1)],by="date_day"))
+
+covs[,diff_new_cases:=c(NA,diff(new_cases))]
+
+tdtcovs <- merge(tdt,covs,by="date_day")
+
+dtable <- c(cor(tdtcovs$sent_roll3_weighted_shifted1_twitter,tdtcovs$new_cases),
+            cor(tdtcovs$sent_roll3_weighted_twitter,tdtcovs$new_cases),
+            cor(tdtcovs$prop_good,tdtcovs$new_cases),
+            cor(tdtcovs$sent_roll3_weighted,tdtcovs$new_cases))
+
+
+dtableconfint <- c(paste0("[",paste0(round(cor.test(tdtcovs$sent_roll3_weighted_shifted1_twitter,tdtcovs$new_cases)$conf.int,2),collapse=","),"]"),
+                   paste0("[",paste0(round(cor.test(tdtcovs$sent_roll3_weighted_twitter,tdtcovs$new_cases)$conf.int,2),collapse=","),"]"),
+                   paste0("[",paste0(round(cor.test(tdtcovs$prop_good,tdtcovs$new_cases)$conf.int,2),collapse=","),"]"),
+                   paste0("[",paste0(round(cor.test(tdtcovs$sent_roll3_weighted,tdtcovs$new_cases)$conf.int,2),collapse=","),"]"))
+
+
+dtable_names <- c("Twitter (Aggregate Shift 1)","Twitter (Aggregate No Shift)","Survey","Der Standard (Aggregate)")
+
+tabledt <- data.frame(paste(sprintf("%.2f",round(dtable,2)),dtableconfint))
+
+colnames(tabledt) <- c("New Cases")
+
+rownames(tabledt) <- dtable_names
+
+print(xtable(tabledt),comment=F)
+```
+
+```{r,results='asis'}
+cordt <- merge(cordt,covs,all.x=T,by="date_day")
+
+twtable <- c(cocor(~new_cases + sent_roll3_weighted_shifted1_twitter|new_cases + prop_good,data=cordt)@hittner2003$p.value,
+             cocor(~new_cases + sentA_roll3_weighted_shifted1_twitter|new_cases + prop_good,data=cordt)@hittner2003$p.value,
+             cocor(~new_cases + sentB_roll3_weighted_shifted1_twitter|new_cases + prop_good,data=cordt)@hittner2003$p.value,
+             cocor(~new_cases + sent_roll3_weighted_derstandard|new_cases + prop_good,data=cordt)@hittner2003$p.value,
+             cocor(~new_cases + sentA_roll3_weighted_derstandard|new_cases + prop_good,data=cordt)@hittner2003$p.value,
+             cocor(~new_cases + sentB_roll3_weighted_derstandard|new_cases + prop_good,data=cordt)@hittner2003$p.value)
+
+twtable_diff <- c(cor(cordt$prop_good,cordt$new_cases) - cor(cordt$new_cases,cordt$sent_roll3_weighted_shifted1_twitter),
+                  cor(cordt$prop_good,cordt$new_cases)-cor(cordt$new_cases,cordt$sentA_roll3_weighted_shifted1_twitter),
+                  cor(cordt$prop_good,cordt$new_cases) - cor(cordt$new_cases,cordt$sentB_roll3_weighted_shifted1_twitter),
+                  cor(cordt$prop_good,cordt$new_cases) - cor(cordt$new_cases,cordt$sent_roll3_weighted_derstandard),
+                  cor(cordt$prop_good,cordt$new_cases) - cor(cordt$new_cases,cordt$sentA_roll3_weighted_derstandard),
+                  cor(cordt$prop_good,cordt$new_cases) - cor(cordt$new_cases,cordt$sentB_roll3_weighted_derstandard))
+
+twtable_diff_names <- paste(round(twtable_diff,2),c("(Twitter)","(Twitter LIWC)","(Twitter GS)","(Survey)","(Survey)","(Survey)"))
+
+
+twtable_names <- c("Twitter (Aggregate Sentiment) vs. Survey","Twitter (LIWC) vs. Survey","Twitter (GS) vs. Survey","derstandard (Aggregate Sentiment) vs. Survey","derstandard (LIWC) vs. Survey","derstandard (GS) vs. Survey")
+tabledt <- data.frame(round(twtable,8),twtable_diff_names)
+
+colnames(tabledt) <- c("p Value","Difference (higher)")
+
+rownames(tabledt) <- twtable_names
+
+print(xtable(tabledt,digits=3),comment=F)
+```
+
+## Scatterplots COVID-19 cases
+
+```{r scatter_cases,fig.show="hold", out.width="50%"}
+pl[,date_day:=date]
+
+tdt <- na.omit(merge(pl[,.(date_day,sent_roll3_weighted,prop_good)],cdplstandard[,.(date_day,sent_roll3_weighted_twitter=sent_roll3_weighted,sent_roll3_weighted_shifted1_twitter=sent_roll3_weighted_shifted1)],by="date_day"))
+
+covs[,diff_new_cases:=c(NA,diff(new_cases))]
+
+tdtcovs <- merge(tdt,covs,by="date_day")
+
+# scatterplots with new cases
+
+ggplot(tdtcovs,aes(x=sent_roll3_weighted_shifted1_twitter,y=new_cases)) + geom_point() + geom_smooth(method="lm",color="dark grey",alpha=0.5,se=F) + ylab("New COVID-19 Cases") + xlab("Aggregate Text Sentiment (Twitter Shift 1)")
+
+ggplot(tdtcovs,aes(x=sent_roll3_weighted_twitter,y=new_cases)) + geom_point() + geom_smooth(method="lm",color="dark grey",alpha=0.5,se=F) + ylab("New COVID-19 Cases") + xlab("Aggregate Text Sentiment (Twitter)")
+
+ggplot(tdtcovs,aes(x=prop_good,y=new_cases)) + geom_point() + geom_smooth(method="lm",color="dark grey",alpha=0.5,se=F) + ylab("New COVID-19 Cases") + xlab("Proportion of Positive in Survey")
+
+ggplot(tdtcovs,aes(x=sent_roll3_weighted,y=new_cases)) + geom_point() + geom_smooth(method="lm",color="dark grey",alpha=0.5,se=F) + ylab("New COVID-19 Cases") + xlab("Aggregate Text Sentiment (derstandard)")
+```
+
+
+# Bootstraping
+
+```{r bootstrap_plots,fig.show="hold", out.width="50%",eval=F}
+#This is not evaluated by default to save time for knitting
+#If you want to run it, set the number of cores that are available in the boot function
+
+bootcortestfn <- function(first,second){
+  
+  cordt <- cordt[,.SD,.SDcols=c(first,second,"prop_good")]
+  
+  corcompare_diff <- function(data,indices){
+    s <- data[indices]
+    cor1 <- cor(s[[1]],s$prop_good)
+    cor2 <- cor(s[[2]],s$prop_good)
+    return(cor2-cor1)
+  }
+  
+  cors <- boot(cordt,corcompare_diff,R=100000,parallel="multicore",ncpus=4)
+}
+
+bootlist <- list(list("sent_roll3_weighted_derstandard","sent_roll3_weighted_shifted1_twitter"),
+list("sentB_roll3_weighted_derstandard","sentA_roll3_weighted_derstandard"),
+list("sentB_roll3_weighted_shifted1_twitter","sentA_roll3_weighted_shifted1_twitter"),
+list("sentA_pos_roll3_weighted_derstandard","sentA_neg_roll3_weighted_derstandard"),
+list("sentA_pos_roll3_weighted_shifted1_twitter","sentA_neg_roll3_weighted_shifted1_twitter"),
+list("sentB_pos_roll3_weighted_derstandard","sentB_neg_roll3_weighted_derstandard"),
+list("sentB_pos_roll3_weighted_shifted1_twitter","sentB_neg_roll3_weighted_shifted1_twitter"))
+
+# Plot Loop
+twtable_names <- c("Twitter vs derstandard (aggregate Sentiment)","GS vs. LIWC (derstandard)","GS vs. LIWC (Twitter)","LIWC neg vs. LIWC pos (derstandard)","LIWC neg vs. LIWC pos (Twitter)","GS neg vs. GS pos (derstandard)","GS neg vs. GS pos (Twitter)")
+
+for (i in 1:length(bootlist)){
+cors <- bootcortestfn(bootlist[[i]][[1]],bootlist[[i]][[2]])
+
+apply(cors$t,2, quantile, c(.025, 0.975),na.rm=T)[,1]
+
+corsdt <- as.data.table(cors$t)
+
+setnames(corsdt,"t")
+
+d <- density(corsdt$t)
+
+print(ggplot(corsdt,aes(x=t)) + geom_density(fill="red") + ggtitle(twtable_names[i]) + annotate("text",label=paste0('95% CI\n [',paste0(round(apply(cors$t,2, quantile, c(.025, 0.975),na.rm=T)[,1],3),collapse = ","),']'),x = -1.8, y = max(d$y)-0.5) + scale_x_continuous(limits = c(-2, 0.5)))
+}
+```
+
