@@ -415,32 +415,41 @@ setnames(cdplselectdt,cdplselect[-c(1,2)],paste0(cdplselect[-c(1,2)],"_twitter")
 
 cordt <- merge(plselectdt,cdplselectdt,by="date_day")
 
+# reverse negative
+cordt[,sentA_neg_roll3_weighted_derstandard_reversed:=1-sentA_neg_roll3_weighted_derstandard]
+
+cordt[,sentB_neg_roll3_weighted_derstandard_reversed:=1-sentB_neg_roll3_weighted_derstandard]
 
 
+cordt[,sentA_neg_roll3_weighted_shifted1_twitter_reversed:=1-sentA_neg_roll3_weighted_shifted1_twitter]
+
+cordt[,sentB_neg_roll3_weighted_shifted1_twitter_reversed:=1-sentB_neg_roll3_weighted_shifted1_twitter]
+
+# reversed
 twtable <- c(cocor(~prop_good + sent_roll3_weighted_derstandard|prop_good + sent_roll3_weighted_shifted1_twitter,data=cordt)@hittner2003$p.value,
              cocor(~prop_good + sentA_roll3_weighted_derstandard|prop_good + sentB_roll3_weighted_derstandard,data=cordt)@hittner2003$p.value,
              cocor(~prop_good + sentA_roll3_weighted_shifted1_twitter|prop_good + sentB_roll3_weighted_shifted1_twitter,data=cordt)@hittner2003$p.value,
-             cocor(~prop_good + sentA_pos_roll3_weighted_derstandard|prop_good + sentA_neg_roll3_weighted_derstandard,data=cordt)@hittner2003$p.value,
-             cocor(~prop_good + sentA_pos_roll3_weighted_shifted1_twitter|prop_good + sentA_neg_roll3_weighted_shifted1_twitter,data=cordt)@hittner2003$p.value,
-             cocor(~prop_good + sentB_pos_roll3_weighted_derstandard|prop_good + sentB_neg_roll3_weighted_derstandard,data=cordt)@hittner2003$p.value,
-             cocor(~prop_good + sentB_pos_roll3_weighted_shifted1_twitter|prop_good + sentB_neg_roll3_weighted_shifted1_twitter,data=cordt)@hittner2003$p.value)
+             cocor(~prop_good + sentA_pos_roll3_weighted_derstandard|prop_good + sentA_neg_roll3_weighted_derstandard_reversed,data=cordt)@hittner2003$p.value,
+             cocor(~prop_good + sentA_pos_roll3_weighted_shifted1_twitter|prop_good + sentA_neg_roll3_weighted_shifted1_twitter_reversed,data=cordt)@hittner2003$p.value,
+             cocor(~prop_good + sentB_pos_roll3_weighted_derstandard|prop_good + sentB_neg_roll3_weighted_derstandard_reversed,data=cordt)@hittner2003$p.value,
+             cocor(~prop_good + sentB_pos_roll3_weighted_shifted1_twitter|prop_good + sentB_neg_roll3_weighted_shifted1_twitter_reversed,data=cordt)@hittner2003$p.value)
 
-twtable_diff <- c(cor(cordt$prop_good,cordt$sent_roll3_weighted_derstandard) - cor(cordt$prop_good,cordt$sent_roll3_weighted_shifted1_twitter),
-                  cor(cordt$prop_good,cordt$sentB_roll3_weighted_derstandard)-cor(cordt$prop_good,cordt$sentA_roll3_weighted_derstandard),
-                  cor(cordt$prop_good,cordt$sentB_roll3_weighted_shifted1_twitter) - cor(cordt$prop_good,cordt$sentA_roll3_weighted_shifted1_twitter),
-                  cor(cordt$prop_good,cordt$sentA_pos_roll3_weighted_derstandard) - cor(cordt$prop_good,cordt$sentA_neg_roll3_weighted_derstandard),
-                  cor(cordt$prop_good,cordt$sentA_pos_roll3_weighted_shifted1_twitter) - cor(cordt$prop_good,cordt$sentA_neg_roll3_weighted_shifted1_twitter),
-                  cor(cordt$prop_good,cordt$sentB_pos_roll3_weighted_derstandard) - cor(cordt$prop_good,cordt$sentB_neg_roll3_weighted_derstandard),
-                  cor(cordt$prop_good,cordt$sentB_pos_roll3_weighted_shifted1_twitter) - cor(cordt$prop_good,cordt$sentB_neg_roll3_weighted_shifted1_twitter))
+# absolute
+twtable_diff <- c(abs(cor(cordt$prop_good,cordt$sent_roll3_weighted_derstandard)) - abs(cor(cordt$prop_good,cordt$sent_roll3_weighted_shifted1_twitter)),
+abs(cor(cordt$prop_good,cordt$sentB_roll3_weighted_derstandard))-abs(cor(cordt$prop_good,cordt$sentA_roll3_weighted_derstandard)),
+abs(cor(cordt$prop_good,cordt$sentB_roll3_weighted_shifted1_twitter)) - abs(cor(cordt$prop_good,cordt$sentA_roll3_weighted_shifted1_twitter)),
+abs(cor(cordt$prop_good,cordt$sentA_pos_roll3_weighted_derstandard)) - abs(cor(cordt$prop_good,cordt$sentA_neg_roll3_weighted_derstandard)),
+abs(cor(cordt$prop_good,cordt$sentA_pos_roll3_weighted_shifted1_twitter)) - abs(cor(cordt$prop_good,cordt$sentA_neg_roll3_weighted_shifted1_twitter)),
+abs(cor(cordt$prop_good,cordt$sentB_pos_roll3_weighted_derstandard)) - abs(cor(cordt$prop_good,cordt$sentB_neg_roll3_weighted_derstandard)),
+abs(cor(cordt$prop_good,cordt$sentB_pos_roll3_weighted_shifted1_twitter)) - abs(cor(cordt$prop_good,cordt$sentB_neg_roll3_weighted_shifted1_twitter)))
 
+twtable_diff_names <- paste(round(twtable_diff,2),c("(Der Standard)","(GS)","(GS)","(LIWC pos)","(LIWC pos)","(GS pos)","(GS pos)"))
 
-twtable_diff_names <- paste(round(twtable_diff,2),c("(derstandard)","(GS)","(GS)","(LIWC pos)","(LIWC pos)","(GS pos)","(GS pos)"))
-
-twtable_names <- c("Twitter vs derstandard (aggregate Sentiment)","GS vs. LIWC (derstandard)","GS vs. LIWC (Twitter)","LIWC neg vs. LIWC pos (derstandard)","LIWC neg vs. LIWC pos (Twitter)","GS neg vs. GS pos (derstandard)","GS neg vs. GS pos (Twitter)")
+twtable_names <- c("Twitter vs Der Standard (Aggregate Sentiment)","GS vs. LIWC (Der Standard)","GS vs. LIWC (Twitter)","LIWC neg vs. LIWC pos (Der Standard)","LIWC neg vs. LIWC pos (Twitter)","GS neg vs. GS pos (Der Standard)","GS neg vs. GS pos (Twitter)")
 
 tabledt <- data.frame(round(twtable,8),twtable_diff_names)
 
-colnames(tabledt) <- c("p Value","Difference")
+colnames(tabledt) <- c("p Value","Absolute difference")
 
 rownames(tabledt) <- twtable_names
 
@@ -546,7 +555,7 @@ ggplot(tdtcovs,aes(x=sent_roll3_weighted,y=new_cases)) + geom_point() + geom_smo
 
 # Bootstraping
 
-```{r bootstrap_plots,fig.show="hold", out.width="50%",eval=T}
+```{r bootstrap_plots,fig.show="hold", out.width="50%",eval=F}
 #This is not evaluated by default to save time for knitting
 #If you want to run it, set the number of cores that are available in the boot function
 
